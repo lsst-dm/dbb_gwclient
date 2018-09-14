@@ -63,14 +63,26 @@ def parse_args(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("files", action="store", nargs="+", metavar="FILE",
                         help="ATS raw files or directories of ATS raw files to save to Data Backbone")
-    parser.add_argument("-m", "--provmsg", action="store", dest="provmsg", required=True,
+
+    optional = parser._action_groups.pop()
+
+    # Making provmsg named argument to help ensure that a first filename is not 
+    # used for a provmsg accidentally
+    required = parser.add_argument_group('required arguments')
+    required.add_argument("-m", "--provmsg", action="store", dest="provmsg", required=True,
                         help="Message to be stored in DBB as part of ingestion provenance")
-    parser.add_argument("-v", "--verbose", action="store_true", dest="verbose", required=False,
+
+    optional.add_argument("-p", "--prefix", action="store", dest="prefix", required=False,
+                        help="Data Backbone Gateway HTTP URL prefix\n(default:%(default)s)",
+                        default="https://lsst-dbb-gw.ncsa.illinois.edu")
+    optional.add_argument("-v", "--verbose", action="store_true", dest="verbose", required=False,
                         help="Print file level output useful for watching progress")
-    parser.add_argument("-d", "--debug", action="store_true", dest="debug", required=False,
+    optional.add_argument("-d", "--debug", action="store_true", dest="debug", required=False,
                         help="Print very verbose output for debugging")
-    parser.add_argument("--dryrun", action="store_true", dest="dryrun", required=False,
+    optional.add_argument("--dryrun", action="store_true", dest="dryrun", required=False,
                         help="If set, does not actually transfer file")
+
+    parser._action_groups.append(optional)
 
     return parser.parse_args(argv)
 
@@ -193,15 +205,15 @@ def create_digest_data(filename, digest):
     return afile
 
 
-def create_transfer_cmd(filename, dest, uuid_str):
+def create_transfer_cmd(filename, trans_opts, uuid_str):
     """Creates a string containing the transfer command
 
     Parameters
     ----------
     filename: `str`
         Name of output tarball
-    dest : `dict`
-        Information about destination needed to create transfer command
+    trans_opts : `dict`
+        Options for the transfer command (e.g., dest http url prefix)
     uuid_str : `str`
         A unique id string to use in tarfile name to avoid collisions in
         DBB delivery area
@@ -214,13 +226,16 @@ def create_transfer_cmd(filename, dest, uuid_str):
     tarfilename = "%s_%s.tar" % (os.path.splitext(os.path.basename(filename))[0], uuid_str)
     logging.info("Tar filename = %s", tarfilename)
 
-    transcmd = "curl -u : --negotiate -X PUT -T - %s/%s" % (dest["prefix"], tarfilename)
+    if not trans_opts["prefix"].startswith('https://'):
+        raise ValueError("Prefix must start with https://")
+
+    transcmd = "curl -u : --negotiate -X PUT -T - %s/%s" % (trans_opts["prefix"], tarfilename)
     logging.debug("Transfer command = %s", transcmd)
 
     return transcmd
 
 
-def save_file(filename, common_info, dryrun):
+def save_file(filename, common_info, trans_opts, dryrun):
     """Transfers a single file along with file information to the
         Data Backbone"s staging area
 
@@ -230,6 +245,8 @@ def save_file(filename, common_info, dryrun):
         Name of file to save to Data Backbone.   Includes any local path
     common_info : `dict`
         File information common to all files (like LSST user name)
+    trans_opts : `dict`
+        Options for the transfer command (e.g., dest http url prefix)
     dryrun : `bool`
         Controls whether file is actually transferred.
     """
@@ -250,9 +267,7 @@ def save_file(filename, common_info, dryrun):
 
     all_files.append(create_digest_data(filename, digest))
 
-    transcmd = create_transfer_cmd(filename,
-                                   {"prefix": "https://lsst-dbb-dav.ncsa.illinois.edu/webdav"},
-                                   common_info['uuid'])
+    transcmd = create_transfer_cmd(filename, trans_opts, common_info['uuid'])
 
     if not dryrun:
         # send output of tar as stdin to curl
@@ -294,6 +309,8 @@ def main(argv):
 
     logging.debug("Cmdline args = %s", args)
 
+    trans_opts = {"prefix": args.prefix}
+
     uuid_str = str(uuid.uuid4())
     common_info = {"dataset_type": "raw",
                    "exec_name": os.path.basename(sys.argv[0]),
@@ -318,7 +335,7 @@ def main(argv):
 
     # Loop through list saving files
     for fname in fileset:
-        save_file(fname, common_info, args.dryrun)
+        save_file(fname, common_info, trans_opts, args.dryrun)
 
     print("\nFinished saving %d file(s) in %0.3f seconds\n" % (len(fileset), time.time() - start))
 
