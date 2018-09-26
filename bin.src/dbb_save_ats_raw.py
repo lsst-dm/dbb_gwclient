@@ -51,12 +51,12 @@ def parse_args(argv=None):
     Parameters
     ----------
     argv : `list`
-        list of strings containing the command-line arguments
+        List of strings containing the command-line arguments.
 
     Returns
     -------
     args : `Namespace`
-        Command-line arguments converted into an object with attributes
+        Command-line arguments converted into an object with attributes.
     """
     if argv is None:
         argv = sys.argv[1:]
@@ -95,15 +95,15 @@ def get_lsst_user():
     Returns
     -------
     user : `str`
-        LSST user name
+        LSST user name.
 
     Raises
     ------
     FileNotFoundError
         Raised when klist command is not in path or could not find
-        Kerberos ticket
+        Kerberos ticket.
     ValueError
-        Raised when klist output doesn't have an NCSA.EDU default principal
+        Raised when klist output doesn't have an NCSA.EDU default principal.
     """
     # since local logins can be different than LSST user names
     # parse Kerberos information for user name
@@ -135,19 +135,19 @@ def create_physical_data(filename, chksum, chksum_type, common_info):
     Parameters
     ----------
     filename : `str`
-        Name of file to save to Data Backbone.   Includes any local path
+        Name of file to save to Data Backbone.   Includes any local path.
     chksum : `str`
         Hexdigest string for file to transfer to Data Backbone.
     chksum_type : `str`
-        Which method to use for calculating the chksum
+        Which method to use for calculating the chksum.
     common_info : `dict`
-        Dictionary containing information common to all files being saved
+        Dictionary containing information common to all files being saved.
 
     Returns
     -------
     afile : `dict`
         Data needed for saving virtual file containing physical/transfer
-        metadata to tarball
+        metadata to tarball.
     """
     data_filename = "%s.info" % os.path.basename(filename)
 
@@ -180,15 +180,15 @@ def create_digest_data(filename, digest):
     Parameters
     ----------
     filename : `str`
-        Name of file to save to Data Backbone.   Includes any local path
+        Name of file to save to Data Backbone.   Includes any local path.
     digest : `dict`
-        Mapping filenames to chksums
+        Mapping filenames to chksums.
 
     Returns
     -------
     afile : `dict`
         Data needed for saving virtual digest file containing chksum
-        information to tarball
+        information to tarball.
     """
     digest_filename = "%s.digest" % os.path.basename(filename)
     logging.debug("chksum digest filename = %s", digest_filename)
@@ -213,17 +213,17 @@ def create_transfer_cmd(filename, trans_opts, uuid_str):
     Parameters
     ----------
     filename: `str`
-        Name of output tarball
+        Name of output tarball.
     trans_opts : `dict`
-        Options for the transfer command (e.g., dest http url prefix)
+        Options for the transfer command (e.g., dest http url prefix).
     uuid_str : `str`
         A unique id string to use in tarfile name to avoid collisions in
-        DBB delivery area
+        DBB delivery area.
 
     Returns
     -------
     transcmd : `str`
-        Command taking stdin so can pipe tar directly to curl
+        Command taking stdin so can pipe tar directly to curl.
     """
     tarfilename = "%s_%s.tar" % (os.path.splitext(os.path.basename(filename))[0], uuid_str)
     logging.info("Tar filename = %s", tarfilename)
@@ -243,9 +243,8 @@ def check_gw_node(trans_opts):
     Parameters
     ----------
     trans_opts : `dict`
-        Options for the transfer command (e.g., dest http url prefix)
+        Options for the transfer command (e.g., dest http url prefix).
     """
-
     logging.debug("Checking connection to DBB GW node")
 
     if not trans_opts["prefix"].startswith('https://'):
@@ -289,11 +288,11 @@ def save_file(filename, common_info, trans_opts, dryrun):
     Parameters
     ----------
     filename : `str`
-        Name of file to save to Data Backbone.   Includes any local path
+        Name of file to save to Data Backbone.   Includes any local path.
     common_info : `dict`
-        File information common to all files (like LSST user name)
+        File information common to all files (like LSST user name).
     trans_opts : `dict`
-        Options for the transfer command (e.g., dest http url prefix)
+        Options for the transfer command (e.g., dest http url prefix).
     dryrun : `bool`
         Controls whether file is actually transferred.
     """
@@ -366,7 +365,7 @@ def main(argv):
     Parameters
     ----------
     argv : `list`
-        List of strings containing command line arguments
+        List of strings containing command line arguments.
     """
     start = time.time()
 

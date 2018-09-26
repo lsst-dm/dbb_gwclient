@@ -34,16 +34,16 @@ def calc_md5sum(name=None, bstream=None, blksize=2**15):
     ----------
     name : `str`
         Fullname, includes path where needed, to the file for which to
-        calculate md5sum
+        calculate md5sum.
     bstream : `io.BufferedReader` or `io.BytesIO`
-        Buffered stream for which to calculate md5sum
+        Buffered stream for which to calculate md5sum.
     blksize : `int`
-        Number of bytes to read from file allowing large files to be read in chunks
+        Number of bytes to read from file allowing large files to be read in chunks.
 
     Returns
     -------
     digest : `str`
-        Chksum for given file or data stream
+        Chksum for given file or data stream.
     """
     if name is not None:
         bstream = open(name, "rb")
@@ -67,23 +67,23 @@ def calc_chksum(name=None, bstream=None, chksum_type="md5", blksize=DEFAULT_BLKS
     ----------
     name : `str`
         Fullname, includes path where needed, to the file for which to
-        calculate md5sum
+        calculate md5sum.
     bstream : `io.BufferedReader` or `io.BytesIO`
-        Buffered stream for which to calculate md5sum
+        Buffered stream for which to calculate md5sum.
     chksum_type : `str`
-        Which method to use for calculating the chksum
+        Which method to use for calculating the chksum.
     blksize : `int`
-        Number of bytes to read in a single chunk from the file
+        Number of bytes to read in a single chunk from the file.
 
     Returns
     -------
     chksum : `str`
-        Chksum for given file or byte stream
+        Chksum for given file or byte stream.
 
     Raises
     ------
     KeyError
-        Raised when unsupported chksum_type
+        Raised when unsupported chksum_type.
     """
     chksum_methods = {"md5": calc_md5sum}
 
