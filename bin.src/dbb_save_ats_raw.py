@@ -64,27 +64,23 @@ def parse_args(argv=None):
     parser.add_argument("files", action="store", nargs="+", metavar="FILE",
                         help="ATS raw files or directories of ATS raw files to save to Data Backbone")
 
-    optional = parser._action_groups.pop()
-
     # Making provmsg named argument to help ensure that a first filename is not
     # used for a provmsg accidentally
     required = parser.add_argument_group('required arguments')
     required.add_argument("-m", "--provmsg", action="store", dest="provmsg", required=True,
                           help="Message to be stored in DBB as part of ingestion provenance")
 
-    optional.add_argument("-p", "--prefix", action="store", dest="prefix", required=False,
+    parser.add_argument("-p", "--prefix", action="store", dest="prefix", required=False,
                           help="Data Backbone Gateway HTTP URL prefix\n(default:%(default)s)",
                           default="https://lsst-dbb-gw.ncsa.illinois.edu")
-    optional.add_argument("-n", "--num_tries", action="store", dest="num_tries", type=int, required=False,
+    parser.add_argument("-n", "--num_tries", action="store", dest="num_tries", type=int, required=False,
                           help="Number of times to retry transfer", default=5)
-    optional.add_argument("-v", "--verbose", action="store_true", dest="verbose", required=False,
+    parser.add_argument("-v", "--verbose", action="store_true", dest="verbose", required=False,
                           help="Print file level output useful for watching progress")
-    optional.add_argument("-d", "--debug", action="store_true", dest="debug", required=False,
+    parser.add_argument("-d", "--debug", action="store_true", dest="debug", required=False,
                           help="Print very verbose output for debugging")
-    optional.add_argument("--dryrun", action="store_true", dest="dryrun", required=False,
+    parser.add_argument("--dryrun", action="store_true", dest="dryrun", required=False,
                           help="If set, does not actually transfer file")
-
-    parser._action_groups.append(optional)
 
     return parser.parse_args(argv)
 
