@@ -51,26 +51,36 @@ def parse_args(argv=None):
     Parameters
     ----------
     argv : `list`
-        list of strings containing the command-line arguments
+        List of strings containing the command-line arguments.
 
     Returns
     -------
     args : `Namespace`
-        Command-line arguments converted into an object with attributes
+        Command-line arguments converted into an object with attributes.
     """
     if argv is None:
         argv = sys.argv[1:]
     parser = argparse.ArgumentParser()
     parser.add_argument("files", action="store", nargs="+", metavar="FILE",
                         help="ATS raw files or directories of ATS raw files to save to Data Backbone")
-    parser.add_argument("-m", "--provmsg", action="store", dest="provmsg", required=True,
-                        help="Message to be stored in DBB as part of ingestion provenance")
+
+    # Making provmsg named argument to help ensure that a first filename is not
+    # used for a provmsg accidentally
+    required = parser.add_argument_group('required arguments')
+    required.add_argument("-m", "--provmsg", action="store", dest="provmsg", required=True,
+                          help="Message to be stored in DBB as part of ingestion provenance")
+
+    parser.add_argument("-p", "--prefix", action="store", dest="prefix", required=False,
+                          help="Data Backbone Gateway HTTP URL prefix\n(default:%(default)s)",
+                          default="https://lsst-dbb-gw.ncsa.illinois.edu")
+    parser.add_argument("-n", "--num_tries", action="store", dest="num_tries", type=int, required=False,
+                          help="Number of times to retry transfer", default=5)
     parser.add_argument("-v", "--verbose", action="store_true", dest="verbose", required=False,
-                        help="Print file level output useful for watching progress")
+                          help="Print file level output useful for watching progress")
     parser.add_argument("-d", "--debug", action="store_true", dest="debug", required=False,
-                        help="Print very verbose output for debugging")
+                          help="Print very verbose output for debugging")
     parser.add_argument("--dryrun", action="store_true", dest="dryrun", required=False,
-                        help="If set, does not actually transfer file")
+                          help="If set, does not actually transfer file")
 
     return parser.parse_args(argv)
 
@@ -81,15 +91,15 @@ def get_lsst_user():
     Returns
     -------
     user : `str`
-        LSST user name
+        LSST user name.
 
     Raises
     ------
     FileNotFoundError
         Raised when klist command is not in path or could not find
-        Kerberos ticket
+        Kerberos ticket.
     ValueError
-        Raised when klist output doesn't have an NCSA.EDU default principal
+        Raised when klist output doesn't have an NCSA.EDU default principal.
     """
     # since local logins can be different than LSST user names
     # parse Kerberos information for user name
@@ -121,19 +131,19 @@ def create_physical_data(filename, chksum, chksum_type, common_info):
     Parameters
     ----------
     filename : `str`
-        Name of file to save to Data Backbone.   Includes any local path
+        Name of file to save to Data Backbone.   Includes any local path.
     chksum : `str`
         Hexdigest string for file to transfer to Data Backbone.
     chksum_type : `str`
-        Which method to use for calculating the chksum
+        Which method to use for calculating the chksum.
     common_info : `dict`
-        Dictionary containing information common to all files being saved
+        Dictionary containing information common to all files being saved.
 
     Returns
     -------
     afile : `dict`
         Data needed for saving virtual file containing physical/transfer
-        metadata to tarball
+        metadata to tarball.
     """
     data_filename = "%s.info" % os.path.basename(filename)
 
@@ -166,15 +176,15 @@ def create_digest_data(filename, digest):
     Parameters
     ----------
     filename : `str`
-        Name of file to save to Data Backbone.   Includes any local path
+        Name of file to save to Data Backbone.   Includes any local path.
     digest : `dict`
-        Mapping filenames to chksums
+        Mapping filenames to chksums.
 
     Returns
     -------
     afile : `dict`
         Data needed for saving virtual digest file containing chksum
-        information to tarball
+        information to tarball.
     """
     digest_filename = "%s.digest" % os.path.basename(filename)
     logging.debug("chksum digest filename = %s", digest_filename)
@@ -193,43 +203,92 @@ def create_digest_data(filename, digest):
     return afile
 
 
-def create_transfer_cmd(filename, dest, uuid_str):
+def create_transfer_cmd(filename, trans_opts, uuid_str):
     """Creates a string containing the transfer command
 
     Parameters
     ----------
     filename: `str`
-        Name of output tarball
-    dest : `dict`
-        Information about destination needed to create transfer command
+        Name of output tarball.
+    trans_opts : `dict`
+        Options for the transfer command (e.g., dest http url prefix).
     uuid_str : `str`
         A unique id string to use in tarfile name to avoid collisions in
-        DBB delivery area
+        DBB delivery area.
 
     Returns
     -------
     transcmd : `str`
-        Command taking stdin so can pipe tar directly to curl
+        Command taking stdin so can pipe tar directly to curl.
     """
     tarfilename = "%s_%s.tar" % (os.path.splitext(os.path.basename(filename))[0], uuid_str)
     logging.info("Tar filename = %s", tarfilename)
 
-    transcmd = "curl -u : --negotiate -X PUT -T - %s/%s" % (dest["prefix"], tarfilename)
+    if not trans_opts["prefix"].startswith('https://'):
+        raise ValueError("Prefix must start with https://")
+
+    transcmd = "curl -s -S --fail -u : --negotiate -X PUT -T - %s/%s" % (trans_opts["prefix"], tarfilename)
     logging.debug("Transfer command = %s", transcmd)
 
     return transcmd
 
 
-def save_file(filename, common_info, dryrun):
+def check_gw_node(trans_opts):
+    """Check can connect to transfer service
+
+    Parameters
+    ----------
+    trans_opts : `dict`
+        Options for the transfer command (e.g., dest http url prefix).
+    """
+    logging.debug("Checking connection to DBB GW node")
+
+    if not trans_opts["prefix"].startswith('https://'):
+        raise ValueError("Prefix must start with https://")
+
+    # check valid hostname using socket
+    match = re.match('https://([^/:]+)', trans_opts["prefix"])
+    if match:
+        desthost = match.group(1)
+        logging.debug("desthost = %s", desthost)
+        try:
+            socket.gethostbyname(desthost)
+        except socket.error:
+            raise ValueError("Invalid hostname in prefix (%s)" % desthost) from None
+    else:
+        raise ValueError("Invalid prefix.   Could not determine hostname.")
+
+
+    # check service up and authentication
+    transcmd = "curl -s -S -u : --negotiate --head --fail %s" % (trans_opts["prefix"])
+    logging.debug("Transfer command = %s", transcmd)
+
+    process_trans = subprocess.Popen(shlex.split(transcmd),
+                                     shell=False,
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.STDOUT)
+    out = process_trans.communicate()[0].decode("utf-8")
+
+    if process_trans.returncode != 0:
+        logging.info("Cmd: %s", transcmd)
+        logging.debug("Cmd output: %s", out)
+        print("\nError connecting to DBB GW node.")
+        print("Check prefix, authorization, and status of network and http service\n\n")
+        raise RuntimeError(";   ".join(out.split('\n')[:2]))
+
+
+def save_file(filename, common_info, trans_opts, dryrun):
     """Transfers a single file along with file information to the
         Data Backbone"s staging area
 
     Parameters
     ----------
     filename : `str`
-        Name of file to save to Data Backbone.   Includes any local path
+        Name of file to save to Data Backbone.   Includes any local path.
     common_info : `dict`
-        File information common to all files (like LSST user name)
+        File information common to all files (like LSST user name).
+    trans_opts : `dict`
+        Options for the transfer command (e.g., dest http url prefix).
     dryrun : `bool`
         Controls whether file is actually transferred.
     """
@@ -250,24 +309,46 @@ def save_file(filename, common_info, dryrun):
 
     all_files.append(create_digest_data(filename, digest))
 
-    transcmd = create_transfer_cmd(filename,
-                                   {"prefix": "https://lsst-dbb-dav.ncsa.illinois.edu/webdav"},
-                                   common_info['uuid'])
+    transcmd = create_transfer_cmd(filename, trans_opts, common_info['uuid'])
 
     if not dryrun:
-        # send output of tar as stdin to curl
-        process_trans = subprocess.Popen(shlex.split(transcmd),
-                                         shell=False,
-                                         stdin=subprocess.PIPE,
-                                         stdout=subprocess.PIPE,
-                                         stderr=subprocess.STDOUT)
-        with tarfile.open(fileobj=process_trans.stdin, mode="w|") as tar:
-            for afile in all_files:
-                logging.debug("%s afile keys = %s", afile["filename"], afile.keys())
-                if "data" in afile:
-                    tar.addfile(afile["tarinfo"], afile["data"])
+        for i in range(1,trans_opts['num_tries']+1):
+            try:
+                logging.info("Transfer attempt %d of %d", i, trans_opts['num_tries'])
+
+                # send output of tar as stdin to curl
+                process_trans = subprocess.Popen(shlex.split(transcmd),
+                                                 shell=False,
+                                                 stdin=subprocess.PIPE,
+                                                 stdout=subprocess.PIPE,
+                                                 stderr=subprocess.STDOUT)
+                with tarfile.open(fileobj=process_trans.stdin, mode="w|") as tar:
+                    for afile in all_files:
+                        logging.debug("%s afile keys = %s", afile["filename"], afile.keys())
+                        if "data" in afile:
+                            tar.addfile(afile["tarinfo"], afile["data"])
+                        else:
+                            tar.add(afile["filename"], arcname=afile["arcname"])
+            except:
+                out = process_trans.communicate()[0].decode("utf-8")
+                if process_trans.returncode != 0:
+                    msg = ";   ".join(out.split('\n')[:2])
+                    logging.warning(msg)
+
+                if i < trans_opts['num_tries']:
+                    logging.warning("Transfer problem (Try: %d of %d).   Trying again.",
+                                    i, trans_opts['num_tries'])
                 else:
-                    tar.add(afile["filename"], arcname=afile["arcname"])
+                    logging.error("Aborting transfer due to problems.")
+                    if process_trans.returncode != 0:
+                        logging.info("Transfer command = %s", transcmd)
+
+                        # Skip printing broken pipe traceback as problem happened in curl
+                        raise RuntimeError(msg) from None
+                    else:
+                        raise
+            else:
+                break
 
         logging.info("Completed transfer of %s", filename)
     else:
@@ -280,7 +361,7 @@ def main(argv):
     Parameters
     ----------
     argv : `list`
-        List of strings containing command line arguments
+        List of strings containing command line arguments.
     """
     start = time.time()
 
@@ -294,15 +375,21 @@ def main(argv):
 
     logging.debug("Cmdline args = %s", args)
 
+    lsst_user = get_lsst_user()
+
+    trans_opts = {"prefix": args.prefix,
+                  "num_tries": args.num_tries}
+    check_gw_node(trans_opts)
+
     uuid_str = str(uuid.uuid4())
     common_info = {"dataset_type": "raw",
                    "exec_name": os.path.basename(sys.argv[0]),
                    "exec_host": socket.gethostname(),
                    "timestamp": time.time(),
-                   "user": get_lsst_user(),
+                   "user": lsst_user,
                    "prov_msg": args.provmsg,
                    "uuid": uuid_str
-                   }
+                  }
 
     # create list of files
     fileset = set()
@@ -314,13 +401,16 @@ def main(argv):
                 for fname in filenames:
                     fileset.add("%s/%s" % (dirpath, fname))
 
-    print("\nSaving %d file(s)\n" % len(fileset))
+    if len(fileset) == 0:
+        print("0 files to save.   Exiting")
+    else:
+        print("\nSaving %d file(s)\n" % len(fileset))
 
-    # Loop through list saving files
-    for fname in fileset:
-        save_file(fname, common_info, args.dryrun)
+        # Loop through list saving files
+        for fname in fileset:
+            save_file(fname, common_info, trans_opts, args.dryrun)
 
-    print("\nFinished saving %d file(s) in %0.3f seconds\n" % (len(fileset), time.time() - start))
+        print("\nFinished saving %d file(s) in %0.3f seconds\n" % (len(fileset), time.time() - start))
 
 
 if __name__ == "__main__":
