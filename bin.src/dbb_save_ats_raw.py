@@ -40,6 +40,7 @@ import tarfile
 import time
 import uuid
 
+import psutil
 import yaml
 
 from lsst.dbb.gwclient.chksum_utils import calc_chksum
@@ -312,7 +313,7 @@ def save_file(filename, common_info, trans_opts, dryrun):
     transcmd = create_transfer_cmd(filename, trans_opts, common_info['uuid'])
 
     if not dryrun:
-        for i in range(1,trans_opts['num_tries']+1):
+        for i in range(1, trans_opts['num_tries'] + 1):
             try:
                 logging.info("Transfer attempt %d of %d", i, trans_opts['num_tries'])
 
@@ -355,6 +356,34 @@ def save_file(filename, common_info, trans_opts, dryrun):
         logging.info("Dryrun.  Skipped transfer of %s", filename)
 
 
+def get_ip_address():
+    """Gets public ip address for machine running this program
+
+    Returns
+    -------
+    address : `str` containing ip address
+    """
+    # At least one of the test stand machines did not have a public hostname
+    # so the usual socket.gethostbyname(socket.gethostname()) doesn't work
+    # Private IP address ranges from Internet Engineering Task Force RFC1918
+
+    nifa = psutil.net_if_addrs()
+
+    results = []
+    for card in nifa.values():
+        for addr in card:
+            if addr.family == socket.AF_INET:
+                # avoid known local and private IP addresses
+                if (addr.address != '127.0.0.1'
+                        and not '10.0.0.0' <= addr.address <= '10.255.255.255'
+                        and not '172.16.0.0' <= addr.address <= '172.31.255.255'
+                        and not '192.168.0.0' <= addr.address <= '192.169.255.255'):
+                    results.append(addr.address)
+    address = results[0]
+
+    return address
+
+
 def main(argv):
     """Program entry point.  Control process that iterates over each file
 
@@ -384,7 +413,7 @@ def main(argv):
     uuid_str = str(uuid.uuid4())
     common_info = {"dataset_type": "raw",
                    "exec_name": os.path.basename(sys.argv[0]),
-                   "exec_host": socket.gethostname(),
+                   "exec_host": get_ip_address(),
                    "timestamp": time.time(),
                    "user": lsst_user,
                    "prov_msg": args.provmsg,
