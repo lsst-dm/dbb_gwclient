@@ -330,6 +330,14 @@ def save_file(filename, common_info, trans_opts, dryrun):
                             tar.addfile(afile["tarinfo"], afile["data"])
                         else:
                             tar.add(afile["filename"], arcname=afile["arcname"])
+
+                # Explicit close to address problems in https://jira.lsstcorp.org/browse/DM-16181
+                process_trans.stdin.close()
+                logging.debug("Tar done, waiting for curl to end")
+                process_trans.wait()
+                logging.debug("process_trans.returncode = %s" % process_trans.returncode)
+                if process_trans.returncode != 0:
+                    raise RuntimeError("Non-zero transfer returncode (%s)" % process_trans.returncode)
             except:
                 out = process_trans.communicate()[0].decode("utf-8")
                 if process_trans.returncode != 0:
