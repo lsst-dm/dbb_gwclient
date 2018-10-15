@@ -313,7 +313,7 @@ def save_file(filename, common_info, trans_opts, dryrun):
     transcmd = create_transfer_cmd(filename, trans_opts, common_info['uuid'])
 
     if not dryrun:
-        for i in range(1,trans_opts['num_tries']+1):
+        for i in range(1, trans_opts['num_tries'] + 1):
             try:
                 logging.info("Transfer attempt %d of %d", i, trans_opts['num_tries'])
 
@@ -374,10 +374,10 @@ def get_ip_address():
         for addr in card:
             if addr.family == socket.AF_INET:
                 # avoid known local and private IP addresses
-                if addr.address != '127.0.0.1' and \
-                   not '10.0.0.0' <= addr.address <= '10.255.255.255' and \
-                   not '172.16.0.0' <= addr.address <= '172.31.255.255' and \
-                   not '192.168.0.0' <= addr.address <= '192.169.255.255':
+                if (addr.address != '127.0.0.1'
+                        and not '10.0.0.0' <= addr.address <= '10.255.255.255'
+                        and not '172.16.0.0' <= addr.address <= '172.31.255.255'
+                        and not '192.168.0.0' <= addr.address <= '192.169.255.255'):
                     results.append(addr.address)
     address = results[0]
 
